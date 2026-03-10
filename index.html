@@ -6,7 +6,7 @@
     <style>
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #eaeaea; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: 340px; background: #2d2d2d; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0; }
+        #sidebar { width: 340px; background: #2d2d2d; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0; display: flex; flex-direction: column; }
         #preview-area { flex-grow: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; background: #121212; }
         
         #comparison-container { display: flex; gap: 20px; width: 100%; justify-content: center; align-items: stretch; margin-top: 15px;}
@@ -42,6 +42,11 @@
         #loadingMsg { display: none; color: #4caf50; font-weight: bold; text-align: center; margin-top: 10px; }
         
         .disabled-ui { opacity: 0.3; pointer-events: none; }
+        
+        /* Footer styling */
+        .credit-footer { margin-top: auto; padding-top: 40px; padding-bottom: 10px; text-align: center; font-size: 13px; color: #777; }
+        .credit-footer a { color: #4caf50; text-decoration: none; font-weight: bold; transition: 0.2s; }
+        .credit-footer a:hover { color: #45a049; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -90,6 +95,10 @@
             <button class="primary-blue" id="btnExportFlat">Download Flat Image</button>
             <button class="secondary" id="btnExportAll">Download All Passes (Greyscale)</button>
             <button class="secondary" id="btnExportAllColor">Download All Passes (Color)</button>
+        </div>
+        
+        <div class="credit-footer">
+            by <a href="https://x.com/rocktobot" target="_blank">@rocktobot</a>
         </div>
     </div>
 
@@ -144,10 +153,10 @@
         let angleInputs = document.querySelectorAll('.angle-container');
 
         if (isEnabled) {
-            htControls.style.display = 'block'; // Unhides the controls
+            htControls.style.display = 'block'; 
             angleInputs.forEach(el => el.classList.remove('disabled-ui'));
         } else {
-            htControls.style.display = 'none'; // Collapses the controls
+            htControls.style.display = 'none'; 
             angleInputs.forEach(el => el.classList.add('disabled-ui'));
         }
     }
