@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Native Riso Separator</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #eaeaea; display: flex; height: 100vh; overflow: hidden; }
+        
+        #sidebar { width: 340px; background: #2d2d2d; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0; }
+        #preview-area { flex-grow: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; background: #121212; }
+        
+        #comparison-container { display: flex; gap: 20px; width: 100%; justify-content: center; align-items: stretch; margin-top: 15px;}
+        .image-box { flex: 1; display: flex; flex-direction: column; align-items: center; background: #222; border: 1px dashed #555; padding: 15px; border-radius: 6px; }
+        
+        /* Global image styling for previews */
+        img, canvas { max-width: 100%; max-height: 80vh; object-fit: contain; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+
+        /* Specific logo override to keep it transparent and flat */
+        .logo-img { max-width: 100%; height: auto; display: block; margin-bottom: 20px; background: transparent; box-shadow: none; }
+
+        h2 { margin: 0 0 10px 0; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 10px; color: #fff; }
+        .section-header { margin-top: 20px; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #bbb; }
+        input[type="number"], input[type="file"] { width: 100%; padding: 8px; box-sizing: border-box; background: #1e1e1e; border: 1px solid #444; color: white; border-radius: 4px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="color"] { width: 40px; height: 35px; padding: 0; border: none; cursor: pointer; flex-shrink: 0; }
+        
+        .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; background: #1a1a1a; padding: 10px; border-radius: 4px; border: 1px solid #333; }
+        .angle-input { width: 60px !important; }
+        
+        button { background: #4caf50; color: white; border: none; padding: 12px 15px; width: 100%; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; margin-top: 10px; margin-bottom: 5px; }
+        button:hover { background: #45a049; }
+        button.secondary { background: #555; }
+        button.secondary:hover { background: #666; }
+        button.primary-blue { background: #2196F3; }
+        button.primary-blue:hover { background: #1e88e5; }
+        
+        .preview-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+        .pass-toggle { display: flex; align-items: center; gap: 8px; background: #eee; color: #000; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px;}
+        
+        #loadingMsg { display: none; color: #4caf50; font-weight: bold; text-align: center; margin-top: 10px; }
+        
+        .disabled-ui { opacity: 0.3; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <img src="logo.png" alt="Separator Logo" class="logo-img">
+
+        <h2 class="section-header" style="margin-top:0;">Setup</h2>
+        <div class="control-group">
+            <label>Upload Image <span id="imageRes" style="float:right; color:#888; font-weight:bold;"></span></label>
+            <input type="file" id="imageUpload" accept="image/*">
+        </div>
+        
+        <div class="control-group">
+            <label>Number of Color Passes</label>
+            <input type="number" id="numPasses" value="3" min="1" max="6">
+        </div>
+
+        <h2 class="section-header">Ink Passes</h2>
+        <div id="colorBlocks"></div>
+
+        <h2 class="section-header">Halftone</h2>
+        <div class="control-group" style="display: flex; align-items: center; gap: 8px; background: #222; padding: 10px; border-radius: 4px;">
+            <input type="checkbox" id="enableHalftone" style="width: auto; margin: 0; cursor: pointer;">
+            <label for="enableHalftone" style="margin: 0; color: white; cursor: pointer; font-size: 14px;">Enable Halftone Dots</label>
+        </div>
+
+        <div id="halftoneControls" style="display: none;">
+            <div class="control-group">
+                <label>Dot Scale (Higher = Bigger Dots)</label>
+                <input type="number" id="ditherScale" value="8" min="2" max="50">
+            </div>
+
+            <div class="control-group">
+                <label>Ink Density Boost (<span id="boostValDisplay">1.2</span>x)</label>
+                <input type="range" id="densityBoost" min="0.5" max="4.0" step="0.1" value="1.2">
+                <p style="font-size: 11px; color: #aaa; margin-top: 2px;">Increases dot size to fill empty space.</p>
+            </div>
+        </div>
+
+        <button id="btnConvert">Calculate Best Fit</button>
+        <div id="loadingMsg">Solving color equations...</div>
+
+        <div id="exportSection" style="display:none; margin-top: 20px;">
+            <h2 class="section-header">Export</h2>
+            <button class="primary-blue" id="btnExportFlat">Download Flat Image</button>
+            <button class="secondary" id="btnExportAll">Download All Passes (Greyscale)</button>
+            <button class="secondary" id="btnExportAllColor">Download All Passes (Color)</button>
+        </div>
+    </div>
+
+    <div id="preview-area">
+        <div class="preview-controls" id="previewToggles"></div>
+        
+        <div id="comparison-container">
+            <div class="image-box">
+                <img id="originalImgDisplay" style="display:none;">
+            </div>
+            
+            <div class="image-box">
+                <canvas id="previewCanvas" style="display:none;"></canvas>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let sourceImage = new Image();
+    let generatedPasses = []; 
+    const defaultAngles = [45, 15, 75, 90, 0, 30]; 
+
+    function hexToRgb(hex) {
+        let bigint = parseInt(hex.replace('#', ''), 16);
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('numPasses').addEventListener('input', updateColorPickers);
+        updateColorPickers();
+
+        document.getElementById('densityBoost').addEventListener('input', (e) => {
+            document.getElementById('boostValDisplay').innerText = parseFloat(e.target.value).toFixed(1);
+        });
+
+        document.getElementById('enableHalftone').addEventListener('change', toggleHalftoneUI);
+
+        document.getElementById('imageUpload').addEventListener('change', handleImageUpload);
+        document.getElementById('btnConvert').addEventListener('click', () => {
+            document.getElementById('loadingMsg').style.display = 'block';
+            setTimeout(processSeparations, 50); 
+        });
+        
+        document.getElementById('btnExportFlat').addEventListener('click', downloadFlatImage);
+        document.getElementById('btnExportAll').addEventListener('click', exportAllPassesGray);
+        document.getElementById('btnExportAllColor').addEventListener('click', exportAllPassesColor);
+    });
+
+    function toggleHalftoneUI() {
+        let isEnabled = document.getElementById('enableHalftone').checked;
+        let htControls = document.getElementById('halftoneControls');
+        let angleInputs = document.querySelectorAll('.angle-container');
+
+        if (isEnabled) {
+            htControls.style.display = 'block'; // Unhides the controls
+            angleInputs.forEach(el => el.classList.remove('disabled-ui'));
+        } else {
+            htControls.style.display = 'none'; // Collapses the controls
+            angleInputs.forEach(el => el.classList.add('disabled-ui'));
+        }
+    }
+
+    function updateColorPickers() {
+        let num = parseInt(document.getElementById('numPasses').value) || 1;
+        let container = document.getElementById('colorBlocks');
+        
+        let savedColors = [];
+        let savedAngles = [];
+        for (let i = 0; i < 6; i++) {
+            let colorInput = document.getElementById('color' + i);
+            let angleInput = document.getElementById('angle' + i);
+            if (colorInput) savedColors[i] = colorInput.value;
+            if (angleInput) savedAngles[i] = angleInput.value;
+        }
+
+        container.innerHTML = '';
+        let defaults = ['#FF0055', '#00AADD', '#FFCC00', '#222222', '#00FF00', '#0000FF']; 
+
+        for(let i = 0; i < num; i++) {
+            let defAngle = defaultAngles[i % 6];
+            let valColor = savedColors[i] || defaults[i % defaults.length];
+            let valAngle = savedAngles[i] || defAngle;
+            
+            container.innerHTML += `
+                <div class="color-row">
+                    <input type="color" id="color${i}" value="${valColor}">
+                    <div style="display:flex; flex-direction:column; flex-grow:1;">
+                        <span style="font-size:12px;">Pass ${i+1}</span>
+                        <div class="angle-container" style="display:flex; align-items:center; gap:5px; margin-top:3px; transition: opacity 0.2s;">
+                            <input type="number" id="angle${i}" class="angle-input" value="${valAngle}">
+                            <span style="font-size:11px;">deg</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        // Sync Halftone UI state
+        toggleHalftoneUI();
+    }
+
+    function handleImageUpload(e) {
+        let file = e.target.files[0];
+        if (file) {
+            let url = URL.createObjectURL(file);
+            let origDisplay = document.getElementById('originalImgDisplay');
+            
+            sourceImage.onload = () => {
+                origDisplay.src = url;
+                origDisplay.style.display = 'block';
+                document.getElementById('imageRes').innerText = `${sourceImage.width} × ${sourceImage.height} px`;
+                document.getElementById('previewCanvas').style.display = 'none';
+                document.getElementById('exportSection').style.display = 'none';
+                document.getElementById('previewToggles').innerHTML = '';
+            };
+            sourceImage.src = url;
+        }
+    }
+
+    function processSeparations() {
+        if (!sourceImage.src) {
+            document.getElementById('loadingMsg').style.display = 'none';
+            return alert("Please upload an image first.");
+        }
+
+        generatedPasses.length = 0;
+
+        let numPasses = parseInt(document.getElementById('numPasses').value);
+        let width = sourceImage.width;
+        let height = sourceImage.height;
+        
+        let useHalftone = document.getElementById('enableHalftone').checked;
+        let dotScale = parseFloat(document.getElementById('ditherScale').value) || 8;
+        let densityBoost = parseFloat(document.getElementById('densityBoost').value) || 1.2;
+        let freq = (Math.PI * 2) / dotScale; 
+
+        let offCanvas = document.createElement('canvas');
+        offCanvas.width = width; 
+        offCanvas.height = height;
+        let offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+        
+        offCtx.fillStyle = '#FFFFFF';
+        offCtx.fillRect(0, 0, width, height);
+        offCtx.drawImage(sourceImage, 0, 0);
+        let pixels = offCtx.getImageData(0, 0, width, height).data;
+
+        let processingPasses = [];
+        let inks = [];
+
+        for (let i = 0; i < numPasses; i++) {
+            let hex = document.getElementById('color' + i).value;
+            let rgb = hexToRgb(hex);
+            let angleDeg = parseFloat(document.getElementById('angle' + i).value) || 0;
+            let angleRad = angleDeg * (Math.PI / 180);
+
+            let c = 1 - (rgb.r / 255);
+            let m = 1 - (rgb.g / 255);
+            let y = 1 - (rgb.b / 255);
+            let magSq = (c * c) + (m * m) + (y * y);
+
+            inks.push({
+                hex: hex, r: rgb.r, g: rgb.g, b: rgb.b,
+                c: c, m: m, y: y,
+                invMagSq: magSq > 0.001 ? (1.0 / magSq) : 0, 
+                sinA: Math.sin(angleRad), cosA: Math.cos(angleRad)
+            });
+
+            let cCan = document.createElement('canvas'); cCan.width = width; cCan.height = height;
+            let gCan = document.createElement('canvas'); gCan.width = width; gCan.height = height;
+            let cCtx = cCan.getContext('2d');
+            let gCtx = gCan.getContext('2d');
+            
+            processingPasses.push({
+                cCtx: cCtx,
+                cData: cCtx.createImageData(width, height),
+                gCtx: gCtx,
+                gData: gCtx.createImageData(width, height),
+                cCanvas: cCan,
+                gCanvas: gCan
+            });
+        }
+
+        let D = new Float32Array(numPasses);
+        let shift = new Float32Array(numPasses);
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let idx = (y * width + x) * 4;
+                
+                let tC = 1 - (pixels[idx] / 255);
+                let tM = 1 - (pixels[idx + 1] / 255);
+                let tY = 1 - (pixels[idx + 2] / 255);
+
+                D.fill(0);
+
+                for (let iter = 0; iter < 15; iter++) {
+                    let curC = 0, curM = 0, curY = 0;
+                    for (let i = 0; i < numPasses; i++) {
+                        curC += D[i] * inks[i].c;
+                        curM += D[i] * inks[i].m;
+                        curY += D[i] * inks[i].y;
+                    }
+
+                    let errC = tC - curC;
+                    let errM = tM - curM;
+                    let errY = tY - curY;
+
+                    for (let i = 0; i < numPasses; i++) {
+                        let dot = (errC * inks[i].c) + (errM * inks[i].m) + (errY * inks[i].y);
+                        shift[i] = dot * inks[i].invMagSq * 0.4; 
+                    }
+
+                    for (let i = 0; i < numPasses; i++) {
+                        D[i] += shift[i];
+                        if (D[i] < 0) D[i] = 0;
+                        if (D[i] > 1) D[i] = 1;
+                    }
+                }
+
+                for (let i = 0; i < numPasses; i++) {
+                    let inkApplied = 0;
+
+                    if (useHalftone) {
+                        let density = Math.min(1.0, D[i] * densityBoost);
+                        let rotX = x * inks[i].cosA - y * inks[i].sinA;
+                        let rotY = x * inks[i].sinA + y * inks[i].cosA;
+                        let threshold = (Math.sin(rotX * freq) + Math.sin(rotY * freq) + 2) / 4.0;
+                        inkApplied = (density >= threshold) ? 1 : 0;
+                    } else {
+                        inkApplied = D[i]; 
+                    }
+
+                    let pass = processingPasses[i];
+                    
+                    pass.cData.data[idx]     = 255 - inkApplied * (255 - inks[i].r);
+                    pass.cData.data[idx + 1] = 255 - inkApplied * (255 - inks[i].g);
+                    pass.cData.data[idx + 2] = 255 - inkApplied * (255 - inks[i].b);
+                    pass.cData.data[idx + 3] = 255; 
+
+                    let grayVal = 255 - (inkApplied * 255);
+                    pass.gData.data[idx]     = grayVal;
+                    pass.gData.data[idx + 1] = grayVal;
+                    pass.gData.data[idx + 2] = grayVal;
+                    pass.gData.data[idx + 3] = 255; 
+                }
+            }
+        }
+
+        for (let i = 0; i < numPasses; i++) {
+            let pass = processingPasses[i];
+            pass.cCtx.putImageData(pass.cData, 0, 0);
+            pass.gCtx.putImageData(pass.gData, 0, 0);
+
+            generatedPasses.push({ 
+                canvas: pass.cCanvas, 
+                exportCanvas: pass.gCanvas, 
+                hex: inks[i].hex, 
+                visible: true, 
+                index: i 
+            });
+        }
+
+        document.getElementById('loadingMsg').style.display = 'none';
+        buildPreviewCheckboxes();
+        renderStack();
+        document.getElementById('exportSection').style.display = 'block';
+    }
+
+    function renderStack() {
+        let previewCanvas = document.getElementById('previewCanvas');
+        previewCanvas.width = sourceImage.width;
+        previewCanvas.height = sourceImage.height;
+        let ctx = previewCanvas.getContext('2d');
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+        ctx.globalCompositeOperation = 'multiply';
+
+        generatedPasses.forEach(pass => {
+            if (pass.visible) {
+                ctx.drawImage(pass.canvas, 0, 0);
+            }
+        });
+        
+        ctx.globalCompositeOperation = 'source-over'; 
+        previewCanvas.style.display = 'block';
+    }
+
+    function buildPreviewCheckboxes() {
+        let container = document.getElementById('previewToggles');
+        container.innerHTML = '';
+
+        generatedPasses.forEach(pass => {
+            let div = document.createElement('div');
+            div.className = 'pass-toggle';
+            div.style.borderLeft = `8px solid ${pass.hex}`;
+
+            div.innerHTML = `
+                <input type="checkbox" id="toggle${pass.index}" checked>
+                <label for="toggle${pass.index}" style="margin:0; cursor:pointer; width:45px;">Pass ${pass.index+1}</label>
+                <div style="display:flex; gap: 4px;">
+                    <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:#666; color:#fff; border:1px solid #444;" onclick="downloadSingleGray(${pass.index})">Save Gray</button>
+                    <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:${pass.hex}; color:#fff; text-shadow:0px 1px 2px rgba(0,0,0,0.8); border:1px solid rgba(0,0,0,0.5);" onclick="downloadSingleColor(${pass.index})">Save Color</button>
+                </div>
+            `;
+            container.appendChild(div);
+
+            document.getElementById(`toggle${pass.index}`).addEventListener('change', (e) => {
+                pass.visible = e.target.checked;
+                renderStack(); 
+            });
+        });
+    }
+
+    function downloadFlatImage() {
+        let previewCanvas = document.getElementById('previewCanvas');
+        let link = document.createElement('a');
+        let useHalftone = document.getElementById('enableHalftone').checked;
+        let suffix = useHalftone ? 'Halftone' : 'Continuous';
+        link.download = `Composited_Flat_${suffix}.png`;
+        link.href = previewCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function downloadSingleGray(index) {
+        let pass = generatedPasses[index];
+        let link = document.createElement('a');
+        let useHalftone = document.getElementById('enableHalftone').checked;
+        let suffix = useHalftone ? 'Halftone' : 'Continuous';
+        link.download = `Pass_${index + 1}_Greyscale_${suffix}_${pass.hex.replace('#','')}.png`;
+        link.href = pass.exportCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function downloadSingleColor(index) {
+        let pass = generatedPasses[index];
+        let link = document.createElement('a');
+        link.download = `Pass_${index + 1}.png`;
+        link.href = pass.canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function exportAllPassesGray() {
+        generatedPasses.forEach((pass, index) => {
+            setTimeout(() => downloadSingleGray(index), index * 300);
+        });
+    }
+
+    function exportAllPassesColor() {
+        generatedPasses.forEach((pass, index) => {
+            setTimeout(() => downloadSingleColor(index), index * 300);
+        });
+    }
+</script>
+</body>
+</html>
