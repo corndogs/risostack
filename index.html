@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>Native Riso Separator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #eaeaea; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: 340px; background: #2d2d2d; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0; display: flex; flex-direction: column; }
+        #sidebar { width: 340px; background: #2d2d2d; padding: 20px; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0; display: flex; flex-direction: column;}
         #preview-area { flex-grow: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; background: #121212; }
         
         #comparison-container { display: flex; gap: 20px; width: 100%; justify-content: center; align-items: stretch; margin-top: 15px;}
-        .image-box { flex: 1; display: flex; flex-direction: column; align-items: center; background: #222; border: 1px dashed #555; padding: 15px; border-radius: 6px; }
+        .image-box { flex: 1; display: flex; flex-direction: column; align-items: center; background: #222; border: 1px dashed #555; padding: 15px; border-radius: 6px; position: relative;}
         
-        /* Global image styling for previews */
         img, canvas { max-width: 100%; max-height: 80vh; object-fit: contain; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
 
-        /* Specific logo override to keep it transparent and flat */
         .logo-img { max-width: 100%; height: auto; display: block; margin-bottom: 20px; background: transparent; box-shadow: none; }
 
         h2 { margin: 0 0 10px 0; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 10px; color: #fff; }
@@ -27,7 +26,7 @@
         input[type="color"] { width: 40px; height: 35px; padding: 0; border: none; cursor: pointer; flex-shrink: 0; }
         
         .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; background: #1a1a1a; padding: 10px; border-radius: 4px; border: 1px solid #333; }
-        .angle-input { width: 60px !important; }
+        .angle-input { width: 90px !important; } 
         
         button { background: #4caf50; color: white; border: none; padding: 12px 15px; width: 100%; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; margin-top: 10px; margin-bottom: 5px; }
         button:hover { background: #45a049; }
@@ -35,14 +34,20 @@
         button.secondary:hover { background: #666; }
         button.primary-blue { background: #2196F3; }
         button.primary-blue:hover { background: #1e88e5; }
+
+        /* Picker Styles */
+        .picker-btn { width: 35px; height: 35px; padding: 0; margin: 0; background: #333; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; border-radius: 4px; }
+        .picker-btn:hover { background: #555; }
+        .picker-btn.active { background: #2196F3; box-shadow: 0 0 0 2px #fff; outline: none; }
+        #originalImgDisplay.picking { cursor: crosshair; }
+        #pickerOverlayMsg { display: none; position: absolute; top: 25px; left: 50%; transform: translateX(-50%); background: #2196F3; color: white; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; pointer-events: none; z-index: 20;}
         
         .preview-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
-        .pass-toggle { display: flex; align-items: center; gap: 8px; background: #eee; color: #000; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 14px;}
         
         #loadingMsg { display: none; color: #4caf50; font-weight: bold; text-align: center; margin-top: 10px; }
         
         .disabled-ui { opacity: 0.3; pointer-events: none; }
-        
+
         /* Footer styling */
         .credit-footer { margin-top: auto; padding-top: 40px; padding-bottom: 10px; text-align: center; font-size: 13px; color: #777; }
         .credit-footer a { color: #4caf50; text-decoration: none; font-weight: bold; transition: 0.2s; }
@@ -52,9 +57,7 @@
 <body>
 
     <div id="sidebar">
-        <img src="logo.png" alt="Separator Logo" class="logo-img">
-
-        <h2 class="section-header" style="margin-top:0;">Setup</h2>
+        <h2 class="section-header" style="margin-top:0;">1. Setup</h2>
         <div class="control-group">
             <label>Upload Image <span id="imageRes" style="float:right; color:#888; font-weight:bold;"></span></label>
             <input type="file" id="imageUpload" accept="image/*">
@@ -63,40 +66,41 @@
         <div class="control-group">
             <label>Number of Color Passes</label>
             <input type="number" id="numPasses" value="3" min="1" max="6">
+            <button id="btnRecommendColors" class="primary-blue" style="padding: 8px; font-size: 12px; margin-top: 8px; display: none;">Recommend Colors</button>
         </div>
 
-        <h2 class="section-header">Ink Passes</h2>
+        <h2 class="section-header">2. Passes</h2>
         <div id="colorBlocks"></div>
 
-        <h2 class="section-header">Halftone</h2>
+        <h2 class="section-header">3. Halftone Settings</h2>
         <div class="control-group" style="display: flex; align-items: center; gap: 8px; background: #222; padding: 10px; border-radius: 4px;">
-            <input type="checkbox" id="enableHalftone" style="width: auto; margin: 0; cursor: pointer;">
-            <label for="enableHalftone" style="margin: 0; color: white; cursor: pointer; font-size: 14px;">Enable Halftone Dots</label>
+            <input type="checkbox" id="enableHalftone" checked style="width: auto; margin: 0; cursor: pointer;">
+            <label for="enableHalftone" style="margin: 0; color: white; cursor: pointer; font-size: 14px;">Enable Halftone Dithering</label>
         </div>
 
-        <div id="halftoneControls" style="display: none;">
+        <div id="halftoneControls">
             <div class="control-group">
                 <label>Dot Scale (Higher = Bigger Dots)</label>
                 <input type="number" id="ditherScale" value="8" min="2" max="50">
             </div>
 
             <div class="control-group">
-                <label>Ink Density Boost (<span id="boostValDisplay">1.2</span>x)</label>
-                <input type="range" id="densityBoost" min="0.5" max="4.0" step="0.1" value="1.2">
+                <label>Ink Density Boost (<span id="boostValDisplay">1.5</span>x)</label>
+                <input type="range" id="densityBoost" min="0.5" max="4.0" step="0.1" value="1.5">
                 <p style="font-size: 11px; color: #aaa; margin-top: 2px;">Increases dot size to fill empty space.</p>
             </div>
         </div>
 
         <button id="btnConvert">Calculate Best Fit</button>
-        <div id="loadingMsg">Solving color equations...</div>
+        <div id="loadingMsg">Processing...</div>
 
         <div id="exportSection" style="display:none; margin-top: 20px;">
-            <h2 class="section-header">Export</h2>
+            <h2 class="section-header">4. Export</h2>
             <button class="primary-blue" id="btnExportFlat">Download Flat Image</button>
-            <button class="secondary" id="btnExportAll">Download All Passes (Greyscale)</button>
-            <button class="secondary" id="btnExportAllColor">Download All Passes (Color)</button>
+            <button class="secondary" id="btnExportAll">Download All Passes (Greyscale ZIP)</button>
+            <button class="secondary" id="btnExportAllColor">Download All Passes (Color ZIP)</button>
         </div>
-        
+
         <div class="credit-footer">
             by <a href="https://x.com/rocktobot" target="_blank">@rocktobot</a>
         </div>
@@ -107,7 +111,8 @@
         
         <div id="comparison-container">
             <div class="image-box">
-                <img id="originalImgDisplay" style="display:none;">
+                <div id="pickerOverlayMsg">Click anywhere to pick color</div>
+                <img id="originalImgDisplay" style="display:none;" draggable="false">
             </div>
             
             <div class="image-box">
@@ -119,11 +124,21 @@
 <script>
     let sourceImage = new Image();
     let generatedPasses = []; 
-    const defaultAngles = [45, 15, 75, 90, 0, 30]; 
+    
+    // Default Angles 
+    const defaultAngles = [22.5, 52.5, 82.5, 112.5, 142.5, 172.5]; 
+    
+    let rawCanvas = document.createElement('canvas');
+    let rawCtx = rawCanvas.getContext('2d', { willReadFrequently: true });
+    let activePickerPass = null;
 
     function hexToRgb(hex) {
         let bigint = parseInt(hex.replace('#', ''), 16);
         return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+    }
+
+    function rgbToHex(r, g, b) {
+        return "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1).toUpperCase();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -135,16 +150,19 @@
         });
 
         document.getElementById('enableHalftone').addEventListener('change', toggleHalftoneUI);
-
         document.getElementById('imageUpload').addEventListener('change', handleImageUpload);
+        
         document.getElementById('btnConvert').addEventListener('click', () => {
             document.getElementById('loadingMsg').style.display = 'block';
             setTimeout(processSeparations, 50); 
         });
+
+        document.getElementById('btnRecommendColors').addEventListener('click', recommendColors);
+        document.getElementById('originalImgDisplay').addEventListener('click', handleImageClick);
         
         document.getElementById('btnExportFlat').addEventListener('click', downloadFlatImage);
-        document.getElementById('btnExportAll').addEventListener('click', exportAllPassesGray);
-        document.getElementById('btnExportAllColor').addEventListener('click', exportAllPassesColor);
+        document.getElementById('btnExportAll').addEventListener('click', () => exportZip(false));
+        document.getElementById('btnExportAllColor').addEventListener('click', () => exportZip(true));
     });
 
     function toggleHalftoneUI() {
@@ -153,10 +171,10 @@
         let angleInputs = document.querySelectorAll('.angle-container');
 
         if (isEnabled) {
-            htControls.style.display = 'block'; 
+            htControls.classList.remove('disabled-ui');
             angleInputs.forEach(el => el.classList.remove('disabled-ui'));
         } else {
-            htControls.style.display = 'none'; 
+            htControls.classList.add('disabled-ui');
             angleInputs.forEach(el => el.classList.add('disabled-ui'));
         }
     }
@@ -185,7 +203,8 @@
             container.innerHTML += `
                 <div class="color-row">
                     <input type="color" id="color${i}" value="${valColor}">
-                    <div style="display:flex; flex-direction:column; flex-grow:1;">
+                    <button class="picker-btn" id="picker${i}" title="Pick color from image">💧</button>
+                    <div style="display:flex; flex-direction:column; flex-grow:1; margin-left: 5px;">
                         <span style="font-size:12px;">Pass ${i+1}</span>
                         <div class="angle-container" style="display:flex; align-items:center; gap:5px; margin-top:3px; transition: opacity 0.2s;">
                             <input type="number" id="angle${i}" class="angle-input" value="${valAngle}">
@@ -195,7 +214,11 @@
                 </div>
             `;
         }
-        // Sync Halftone UI state
+
+        for(let i = 0; i < num; i++) {
+            document.getElementById(`picker${i}`).addEventListener('click', () => togglePicker(i));
+        }
+
         toggleHalftoneUI();
     }
 
@@ -208,14 +231,178 @@
             sourceImage.onload = () => {
                 origDisplay.src = url;
                 origDisplay.style.display = 'block';
+                
+                rawCanvas.width = sourceImage.width;
+                rawCanvas.height = sourceImage.height;
+                rawCtx.fillStyle = '#FFFFFF';
+                rawCtx.fillRect(0, 0, rawCanvas.width, rawCanvas.height);
+                rawCtx.drawImage(sourceImage, 0, 0);
+
                 document.getElementById('imageRes').innerText = `${sourceImage.width} × ${sourceImage.height} px`;
                 document.getElementById('previewCanvas').style.display = 'none';
                 document.getElementById('exportSection').style.display = 'none';
                 document.getElementById('previewToggles').innerHTML = '';
+                document.getElementById('btnRecommendColors').style.display = 'block'; 
             };
             sourceImage.src = url;
         }
     }
+
+    // --- EYEDROPPER LOGIC --- //
+
+    function togglePicker(index) {
+        let img = document.getElementById('originalImgDisplay');
+        let msg = document.getElementById('pickerOverlayMsg');
+        
+        if (activePickerPass === index) {
+            document.getElementById(`picker${index}`).classList.remove('active');
+            activePickerPass = null;
+            img.classList.remove('picking');
+            msg.style.display = 'none';
+            return;
+        }
+
+        document.querySelectorAll('.picker-btn').forEach(btn => btn.classList.remove('active'));
+        
+        activePickerPass = index;
+        document.getElementById(`picker${index}`).classList.add('active');
+        img.classList.add('picking');
+        msg.style.display = 'block';
+    }
+
+    function handleImageClick(e) {
+        if (activePickerPass === null || !sourceImage.src) return;
+
+        let img = document.getElementById('originalImgDisplay');
+        const rect = img.getBoundingClientRect();
+        
+        const imageAspect = sourceImage.width / sourceImage.height;
+        const boxAspect = rect.width / rect.height;
+
+        let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
+
+        if (imageAspect > boxAspect) {
+            renderWidth = rect.width;
+            renderHeight = rect.width / imageAspect;
+            offsetY = (rect.height - renderHeight) / 2;
+        } else {
+            renderHeight = rect.height;
+            renderWidth = rect.height * imageAspect;
+            offsetX = (rect.width - renderWidth) / 2;
+        }
+
+        let clickX = e.clientX - rect.left - offsetX;
+        let clickY = e.clientY - rect.top - offsetY;
+
+        if (clickX >= 0 && clickX <= renderWidth && clickY >= 0 && clickY <= renderHeight) {
+            let scaleX = sourceImage.width / renderWidth;
+            let scaleY = sourceImage.height / renderHeight;
+
+            let origX = Math.floor(clickX * scaleX);
+            let origY = Math.floor(clickY * scaleY);
+
+            let pixelData = rawCtx.getImageData(origX, origY, 1, 1).data;
+            let hex = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
+
+            document.getElementById(`color${activePickerPass}`).value = hex;
+
+            document.getElementById(`picker${activePickerPass}`).classList.remove('active');
+            activePickerPass = null;
+            img.classList.remove('picking');
+            document.getElementById('pickerOverlayMsg').style.display = 'none';
+        }
+    }
+
+    // --- VIBRANT & SHADOW GAMUT EXTRACTION LOGIC --- //
+
+    function recommendColors() {
+        if (!sourceImage.src) return;
+        
+        let k = parseInt(document.getElementById('numPasses').value);
+        
+        const size = 64; 
+        let tempCanvas = document.createElement('canvas');
+        tempCanvas.width = size; tempCanvas.height = size;
+        let tCtx = tempCanvas.getContext('2d');
+        tCtx.fillStyle = '#FFFFFF';
+        tCtx.fillRect(0, 0, size, size);
+        tCtx.drawImage(sourceImage, 0, 0, size, size);
+        
+        let data = tCtx.getImageData(0, 0, size, size).data;
+        let pixels = [];
+        
+        let darkestPixel = null;
+        let minLum = Infinity;
+
+        for (let i = 0; i < data.length; i += 4) {
+            let r = data[i], g = data[i+1], b = data[i+2];
+            
+            // Ignore pure paper white, but keep darks
+            if (r > 240 && g > 240 && b > 240) continue; 
+            
+            let chroma = Math.max(r, g, b) - Math.min(r, g, b);
+            let lum = 0.299*r + 0.587*g + 0.114*b;
+            
+            let p = {r, g, b, chroma, lum};
+            pixels.push(p);
+
+            // Track the absolute darkest point in the image (The Key Color)
+            if (lum < minLum) {
+                minLum = lum;
+                darkestPixel = p;
+            }
+        }
+
+        if (pixels.length < k) return;
+
+        let selectedColors = [];
+        
+        // 1. Force the darkest pixel to be the key/shadow color
+        if (darkestPixel) {
+            selectedColors.push(darkestPixel);
+        }
+
+        // 2. The single most vibrant pixel
+        if (k > 1) {
+            pixels.sort((a, b) => b.chroma - a.chroma);
+            // Ensure we don't accidentally pick the dark pixel twice if it happened to be vibrant
+            let mostVibrant = pixels.find(p => p !== darkestPixel) || pixels[0];
+            selectedColors.push(mostVibrant);
+        }
+        
+        // 3. Farthest-First Traversal for the remaining midtones
+        for (let i = 2; i < k; i++) {
+            let bestPixel = null;
+            let bestScore = -1;
+            
+            for (let p of pixels) {
+                let minDist = Infinity;
+                for (let sc of selectedColors) {
+                    let dist = Math.sqrt((p.r - sc.r)**2 + (p.g - sc.g)**2 + (p.b - sc.b)**2);
+                    if (dist < minDist) minDist = dist;
+                }
+                
+                // Score favors saturation heavily weighted by its uniqueness from other colors
+                let score = p.chroma * Math.pow(minDist, 1.5); 
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPixel = p;
+                }
+            }
+            selectedColors.push(bestPixel);
+        }
+
+        // Sort the finalized colors from lightest to darkest so they stack cleanly
+        selectedColors.sort((a, b) => b.lum - a.lum);
+
+        for (let i = 0; i < k; i++) {
+            let hex = rgbToHex(selectedColors[i].r, selectedColors[i].g, selectedColors[i].b);
+            document.getElementById(`color${i}`).value = hex;
+        }
+    }
+
+    // --- CORE PROCESSOR --- //
 
     function processSeparations() {
         if (!sourceImage.src) {
@@ -231,7 +418,7 @@
         
         let useHalftone = document.getElementById('enableHalftone').checked;
         let dotScale = parseFloat(document.getElementById('ditherScale').value) || 8;
-        let densityBoost = parseFloat(document.getElementById('densityBoost').value) || 1.2;
+        let densityBoost = parseFloat(document.getElementById('densityBoost').value) || 1.5;
         let freq = (Math.PI * 2) / dotScale; 
 
         let offCanvas = document.createElement('canvas');
@@ -356,7 +543,10 @@
                 exportCanvas: pass.gCanvas, 
                 hex: inks[i].hex, 
                 visible: true, 
-                index: i 
+                index: i,
+                offsetX: 0,
+                offsetY: 0,
+                blur: 0 // New property for ink bleed simulation
             });
         }
 
@@ -366,6 +556,33 @@
         document.getElementById('exportSection').style.display = 'block';
     }
 
+    // --- MISREGISTRATION OFFSETS & BLEED --- //
+
+    window.updateOffset = function(index, axis, value) {
+        let val = parseInt(value) || 0;
+        if (axis === 'x') generatedPasses[index].offsetX = val;
+        if (axis === 'y') generatedPasses[index].offsetY = val;
+        renderStack();
+    };
+
+    window.nudgeOffset = function(index, dx, dy) {
+        let nudgeAmount = Math.max(1, Math.round(Math.max(sourceImage.width, sourceImage.height) * 0.005));
+        
+        generatedPasses[index].offsetX += dx * nudgeAmount;
+        generatedPasses[index].offsetY += dy * nudgeAmount;
+        
+        document.getElementById(`offsetX${index}`).value = generatedPasses[index].offsetX;
+        document.getElementById(`offsetY${index}`).value = generatedPasses[index].offsetY;
+        
+        renderStack();
+    };
+
+    window.updateBlur = function(index, value) {
+        generatedPasses[index].blur = parseFloat(value) || 0;
+        document.getElementById(`blurVal${index}`).innerText = generatedPasses[index].blur.toFixed(1);
+        renderStack();
+    };
+
     function renderStack() {
         let previewCanvas = document.getElementById('previewCanvas');
         previewCanvas.width = sourceImage.width;
@@ -374,12 +591,13 @@
 
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-
         ctx.globalCompositeOperation = 'multiply';
 
         generatedPasses.forEach(pass => {
             if (pass.visible) {
-                ctx.drawImage(pass.canvas, 0, 0);
+                if (pass.blur > 0) ctx.filter = `blur(${pass.blur}px)`;
+                ctx.drawImage(pass.canvas, pass.offsetX, pass.offsetY);
+                ctx.filter = 'none'; // Reset filter for the next pass
             }
         });
         
@@ -393,15 +611,38 @@
 
         generatedPasses.forEach(pass => {
             let div = document.createElement('div');
-            div.className = 'pass-toggle';
-            div.style.borderLeft = `8px solid ${pass.hex}`;
+            // Styled to match the dark UI theme
+            div.style.cssText = `border-left: 8px solid ${pass.hex}; display: flex; flex-direction: column; gap: 6px; background: #222; color: #eaeaea; padding: 8px; border-radius: 4px; font-size: 14px; border: 1px solid #444;`;
 
             div.innerHTML = `
-                <input type="checkbox" id="toggle${pass.index}" checked>
-                <label for="toggle${pass.index}" style="margin:0; cursor:pointer; width:45px;">Pass ${pass.index+1}</label>
-                <div style="display:flex; gap: 4px;">
-                    <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:#666; color:#fff; border:1px solid #444;" onclick="downloadSingleGray(${pass.index})">Save Gray</button>
-                    <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:${pass.hex}; color:#fff; text-shadow:0px 1px 2px rgba(0,0,0,0.8); border:1px solid rgba(0,0,0,0.5);" onclick="downloadSingleColor(${pass.index})">Save Color</button>
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
+                    <div>
+                        <input type="checkbox" id="toggle${pass.index}" checked>
+                        <label for="toggle${pass.index}" style="margin:0; cursor:pointer; font-weight: bold; color: #fff;">Pass ${pass.index+1}</label>
+                    </div>
+                    <div style="display:flex; gap: 4px;">
+                        <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:#444; color:#fff; border:1px solid #555;" onclick="downloadSingleGray(${pass.index})">Save Gray</button>
+                        <button style="width:auto; padding:4px 8px; margin:0; font-size:11px; background:${pass.hex}; color:#fff; text-shadow:0px 1px 2px rgba(0,0,0,0.8); border:1px solid rgba(0,0,0,0.5);" onclick="downloadSingleColor(${pass.index})">Save Color</button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; background: #1a1a1a; padding: 4px 6px; border-radius: 4px; box-sizing: border-box; border: 1px solid #333;">
+                    <span style="font-weight:bold; color:#aaa;">Offset:</span>
+                    <input type="number" id="offsetX${pass.index}" value="${pass.offsetX}" style="width: 45px; padding: 2px; text-align: center; border: 1px solid #444; border-radius: 2px; color:#fff; background:#333;" onchange="updateOffset(${pass.index}, 'x', this.value)" title="X Offset (px)">
+                    <input type="number" id="offsetY${pass.index}" value="${pass.offsetY}" style="width: 45px; padding: 2px; text-align: center; border: 1px solid #444; border-radius: 2px; color:#fff; background:#333;" onchange="updateOffset(${pass.index}, 'y', this.value)" title="Y Offset (px)">
+                    
+                    <div style="display:flex; gap: 2px; margin-left: auto;">
+                        <button style="padding: 2px 6px; margin: 0; background: #333; color: #fff; border: 1px solid #555; border-radius: 2px; cursor: pointer;" onclick="nudgeOffset(${pass.index}, 0, -1)" title="Nudge Up">▲</button>
+                        <button style="padding: 2px 6px; margin: 0; background: #333; color: #fff; border: 1px solid #555; border-radius: 2px; cursor: pointer;" onclick="nudgeOffset(${pass.index}, 0, 1)" title="Nudge Down">▼</button>
+                        <button style="padding: 2px 6px; margin: 0; background: #333; color: #fff; border: 1px solid #555; border-radius: 2px; cursor: pointer;" onclick="nudgeOffset(${pass.index}, -1, 0)" title="Nudge Left">◀</button>
+                        <button style="padding: 2px 6px; margin: 0; background: #333; color: #fff; border: 1px solid #555; border-radius: 2px; cursor: pointer;" onclick="nudgeOffset(${pass.index}, 1, 0)" title="Nudge Right">▶</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; background: #1a1a1a; padding: 4px 6px; border-radius: 4px; box-sizing: border-box; border: 1px solid #333; margin-top: 2px;">
+                    <span style="font-weight:bold; color:#aaa;" title="Simulates physical ink bleed">Bleed:</span>
+                    <input type="range" id="blur${pass.index}" min="0" max="4" step="0.1" value="${pass.blur}" style="flex-grow: 1; cursor: pointer; margin: 0 5px;" oninput="updateBlur(${pass.index}, this.value)">
+                    <span id="blurVal${pass.index}" style="width: 20px; text-align: right; color: #fff;">${pass.blur}</span>
                 </div>
             `;
             container.appendChild(div);
@@ -423,13 +664,36 @@
         link.click();
     }
 
+    // Helper to bake in the bleed effects for exports
+    function getExportCanvasWithEffects(pass, isColor) {
+        let source = isColor ? pass.canvas : pass.exportCanvas;
+        if (pass.blur === 0) return source; // No effects to bake in
+        
+        let tempCanvas = document.createElement('canvas');
+        tempCanvas.width = source.width;
+        tempCanvas.height = source.height;
+        let tCtx = tempCanvas.getContext('2d');
+        
+        // Ensure gray canvas has a solid white background before blurring to avoid dark halos
+        if (!isColor) {
+            tCtx.fillStyle = '#FFFFFF';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        }
+        
+        tCtx.filter = `blur(${pass.blur}px)`;
+        tCtx.drawImage(source, 0, 0);
+        return tempCanvas;
+    }
+
     function downloadSingleGray(index) {
         let pass = generatedPasses[index];
         let link = document.createElement('a');
         let useHalftone = document.getElementById('enableHalftone').checked;
         let suffix = useHalftone ? 'Halftone' : 'Continuous';
         link.download = `Pass_${index + 1}_Greyscale_${suffix}_${pass.hex.replace('#','')}.png`;
-        link.href = pass.exportCanvas.toDataURL('image/png');
+        
+        let canvas = getExportCanvasWithEffects(pass, false);
+        link.href = canvas.toDataURL('image/png');
         link.click();
     }
 
@@ -437,21 +701,58 @@
         let pass = generatedPasses[index];
         let link = document.createElement('a');
         link.download = `Pass_${index + 1}.png`;
-        link.href = pass.canvas.toDataURL('image/png');
+        
+        let canvas = getExportCanvasWithEffects(pass, true);
+        link.href = canvas.toDataURL('image/png');
         link.click();
     }
 
-    function exportAllPassesGray() {
-        generatedPasses.forEach((pass, index) => {
-            setTimeout(() => downloadSingleGray(index), index * 300);
+    // --- ZIP EXPORT FUNCTIONALITY --- //
+    async function exportZip(isColor) {
+        if (typeof JSZip === 'undefined') {
+            alert("ZIP Library is still loading or failed to load. Please make sure you have an internet connection to fetch the JSZip library.");
+            return;
+        }
+        
+        let origBtnText = isColor ? document.getElementById('btnExportAllColor').innerText : document.getElementById('btnExportAll').innerText;
+        let btn = isColor ? document.getElementById('btnExportAllColor') : document.getElementById('btnExportAll');
+        
+        btn.innerText = "Zipping files... please wait";
+        btn.style.opacity = "0.7";
+        btn.style.pointerEvents = "none";
+
+        let zip = new JSZip();
+        let useHalftone = document.getElementById('enableHalftone').checked;
+        let suffix = useHalftone ? 'Halftone' : 'Continuous';
+        let folderName = `Separations_${isColor ? 'Color' : 'Gray'}_${suffix}`;
+        
+        let promises = generatedPasses.map((pass, index) => {
+            return new Promise(resolve => {
+                let canvas = getExportCanvasWithEffects(pass, isColor);
+                canvas.toBlob(blob => {
+                    let filename = isColor 
+                        ? `Pass_${index + 1}_Color_${pass.hex.replace('#','')}.png` 
+                        : `Pass_${index + 1}_Greyscale_${pass.hex.replace('#','')}.png`;
+                    zip.file(filename, blob);
+                    resolve();
+                }, "image/png");
+            });
+        });
+
+        await Promise.all(promises);
+        
+        zip.generateAsync({type:"blob"}).then(function(content) {
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `${folderName}.zip`;
+            link.click();
+            
+            btn.innerText = origBtnText;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
         });
     }
 
-    function exportAllPassesColor() {
-        generatedPasses.forEach((pass, index) => {
-            setTimeout(() => downloadSingleColor(index), index * 300);
-        });
-    }
 </script>
 </body>
 </html>
