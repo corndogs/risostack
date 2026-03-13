@@ -57,6 +57,7 @@
 <body>
 
     <div id="sidebar">
+        <img src="logo.png" alt="Risostack" class="logo-img">
         <h2 class="section-header" style="margin-top:0;">1. Setup</h2>
         <div class="control-group">
             <label>Upload Image <span id="imageRes" style="float:right; color:#888; font-weight:bold;"></span></label>
@@ -103,6 +104,12 @@
 
         <div class="credit-footer">
             by <a href="https://x.com/rocktobot" target="_blank">@rocktobot</a>
+            <div style="margin-top: 8px;">
+                <a href="https://github.com/corndogs/risostack" target="_blank" title="View on GitHub" style="display: inline-flex; align-items: center; gap: 6px; color: #aaa; text-decoration: none; font-size: 12px; transition: 0.2s;">
+                    <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+            </div>
         </div>
     </div>
 
@@ -189,7 +196,7 @@
             let colorInput = document.getElementById('color' + i);
             let angleInput = document.getElementById('angle' + i);
             if (colorInput) savedColors[i] = colorInput.value;
-            if (angleInput) savedAngles[i] = angleInput.value;
+            if (angleInput) savedAngles[i] = angleInput.value.replace('°', '');
         }
 
         container.innerHTML = '';
@@ -203,12 +210,13 @@
             container.innerHTML += `
                 <div class="color-row">
                     <input type="color" id="color${i}" value="${valColor}">
-                    <button class="picker-btn" id="picker${i}" title="Pick color from image">💧</button>
+                    <button class="picker-btn" id="picker${i}" title="Pick color from image"><svg width="16" height="16" viewBox="0 0 100 100" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M86.585,12.474C82.583,8.959,76.453,9.405,72.687,13.172L59.213,26.645C57.349,28.509,55.137,29.992,52.695,30.984C51.114,31.626,49.635,32.584,48.368,33.851L41.478,40.843C40.898,41.423,39.958,41.423,39.379,40.843L39.363,40.827C38.526,39.994,37.202,39.733,36.201,40.36C34.775,41.253,34.619,43.154,35.732,44.267L38.747,47.282L18.357,67.928C16.567,69.718,15.607,72.019,15.458,74.362L11.892,77.928C9.939,79.881,9.939,83.046,11.892,84.999L15.428,88.535C16.405,89.512,17.685,90,18.964,90S21.523,89.512,22.5,88.536L26.066,84.97C28.409,84.821,30.71,83.862,32.5,82.071L52.89,61.425L55.733,64.268C56.22,64.756,56.86,65,57.5,65C58.601,65,59.703,64.277,60.028,62.831C60.21,62.019,59.831,61.232,59.213,60.675C58.577,60.101,58.558,59.12,59.156,58.521L66.339,51.235C67.493,50.081,68.37,48.757,68.975,47.343C70.012,44.92,71.451,42.69,73.315,40.827L87.072,27.07C91.132,23.01,90.97,16.325,86.585,12.474ZM37.394,70L23.34,70L42.283,50.818L49.354,57.889L37.394,70Z"/></svg></button>
                     <div style="display:flex; flex-direction:column; flex-grow:1; margin-left: 5px;">
                         <span style="font-size:12px;">Pass ${i+1}</span>
-                        <div class="angle-container" style="display:flex; align-items:center; gap:5px; margin-top:3px; transition: opacity 0.2s;">
-                            <input type="number" id="angle${i}" class="angle-input" value="${valAngle}">
-                            <span style="font-size:11px;">deg</span>
+                        <div class="angle-container" style="display:inline-block; margin-top:3px; transition: opacity 0.2s;">
+                            <input type="text" id="angle${i}" class="angle-input" value="${valAngle}°"
+                                onfocus="this.value=this.value.replace('°','')"
+                                onblur="if(this.value && !this.value.endsWith('°')) this.value=this.value+'°'">
                         </div>
                     </div>
                 </div>
